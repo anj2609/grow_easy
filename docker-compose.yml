@@ -10,12 +10,13 @@ services:
       CORS_ORIGIN: http://localhost:3000
       AI_PROVIDER: ${AI_PROVIDER:-gemini}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-flash-latest}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
       BATCH_SIZE: ${BATCH_SIZE:-25}
       BATCH_CONCURRENCY: ${BATCH_CONCURRENCY:-3}
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-10}
+      AI_REQUEST_TIMEOUT_MS: ${AI_REQUEST_TIMEOUT_MS:-45000}
 
   frontend:
     build:
