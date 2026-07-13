@@ -16,7 +16,8 @@ fixed GrowEasy CRM schema, without assuming fixed column names.
    file server-side, splits rows into batches, and sends each batch to an LLM (Gemini by default,
    Anthropic supported as a swap-in) with a schema-constrained prompt that maps arbitrary columns
    onto the 15 GrowEasy CRM fields. Progress streams back to the UI batch-by-batch over NDJSON.
-4. **Results** — imported vs. skipped records, with skip reasons, in the same table component.
+4. **Results** — imported vs. skipped records, with color-coded status/skip-reason badges, in
+   the same reusable table component.
 
 ## Architecture
 
@@ -33,7 +34,7 @@ groweasy/
 
 - `POST /api/import/process` (`multipart/form-data`, field `file`) — the only API endpoint.
 - `services/csvParser.ts` — server-side CSV parsing (papaparse), independent of the client's
-  preview parse.
+  preview parse. No assumption anywhere about column names.
 - `services/batcher.ts` — splits rows into configurable batches (`BATCH_SIZE`, default 25).
 - `services/aiPrompt.ts` — the shared system prompt and user-message builder used by every
   provider, so behavior stays consistent regardless of which LLM is configured.
@@ -53,20 +54,37 @@ groweasy/
     the skipped list with reason `missing_email_and_mobile`. This is enforced in code, not left
     to the model, so it's deterministic and testable.
 - The response is streamed as **NDJSON** — one JSON object per line — so the frontend gets
-  incremental progress instead of waiting for the whole import to finish.
+  incremental progress instead of waiting for the whole import to finish. If something fails
+  mid-stream (after headers are already sent), an `error` event is written instead of a JSON
+  error response, and the connection is always closed cleanly.
 
 ### Frontend (`frontend/`)
 
-- `app/page.tsx` — the 4-step wizard (`upload → preview → processing → results`).
-- `components/UploadDropzone.tsx` — drag & drop + file picker.
-- `components/DataTable.tsx` — a generic table with a sticky header, horizontal + vertical
-  scrolling, and row virtualization (`@tanstack/react-virtual`) for large CSVs. Reused for the
-  preview table and both results tables.
+- `lib/useImportWizard.ts` — owns all wizard state (`upload → preview → processing → results`)
+  behind one hook, so `app/page.tsx` stays a thin view. Handlers are `useCallback`-wrapped and
+  streaming updates use functional `setState` so each NDJSON line triggers exactly one
+  re-render, regardless of import size.
+- `components/DataTable.tsx` — a **generic, reusable** table with a sticky header, horizontal +
+  vertical scrolling, and row virtualization (`@tanstack/react-virtual`) so the DOM node count
+  stays constant whether the CSV has 10 rows or 100,000. The row is a memoized subcomponent so
+  unrelated table state changes don't re-render already-mounted rows. Reused for the preview
+  table and both results tables.
+- `components/StatusBadge.tsx`, `SummaryCard.tsx`, `StepIndicator.tsx` — small reusable,
+  memoized presentational components extracted so they're independently testable.
+- `components/UploadDropzone.tsx` — drag & drop + click-to-browse + keyboard accessible.
 - `components/ImportProgress.tsx` / `ResultsView.tsx` — streamed progress and the final
-  imported/skipped breakdown.
+  imported/skipped breakdown, with color-coded `crm_status` and skip-reason badges.
 - `lib/csv.ts` — client-side preview parsing (papaparse).
-- `lib/api.ts` — reads the backend's NDJSON stream via `fetch` + `ReadableStream`.
-- Dark mode via a class-based Tailwind toggle (no extra dependency).
+- `lib/api.ts` — reads the backend's NDJSON stream via `fetch` + `ReadableStream`, buffering
+  partial lines across chunk boundaries.
+- `lib/theme.ts` — single source of truth mapping semantic meaning (`crm_status` value, skip
+  reason, tone) to a UI color, so components never hardcode a color literal.
+- `app/globals.css` — the actual color values, as CSS custom properties with light/dark
+  overrides under a `.dark` class, mapped into Tailwind v4 via `@theme inline`. Retheming the
+  whole app means editing values in exactly one place.
+- Dark mode: a pre-hydration inline script in `app/layout.tsx` sets the `.dark` class before
+  paint (reads `localStorage`, falls back to OS preference) so there's no flash-of-wrong-theme
+  or hydration mismatch; `ThemeToggle` persists the choice.
 
 ## Prompt engineering notes
 
@@ -81,7 +99,7 @@ confidently matches the allowed list).
 Structured output (Gemini `responseSchema` / Anthropic tool-use) is used instead of asking the
 model to emit raw JSON in prose, so the response shape is enforced by the API rather than parsed
 with regex. Everything the model returns is still re-validated deterministically in
-`postProcess.ts` before it reaches the client.
+`postProcess.ts` before it reaches the client — the model is never trusted blindly.
 
 ## Setup
 

@@ -31,4 +31,14 @@ describe("DataTable", () => {
     render(<DataTable columns={columns} rows={[]} emptyMessage="Nothing here" />);
     expect(screen.getByText("Nothing here")).toBeInTheDocument();
   });
+
+  it("uses a column's custom render function instead of the raw value", () => {
+    const customColumns: DataTableColumn<Row>[] = [
+      { key: "name", header: "Name" },
+      { key: "email", header: "Email", render: (row) => `<${row.email}>` },
+    ];
+    render(<DataTable columns={customColumns} rows={[{ name: "John", email: "john@example.com" }]} />);
+
+    expect(screen.getByText("<john@example.com>")).toBeInTheDocument();
+  });
 });

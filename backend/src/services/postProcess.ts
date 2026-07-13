@@ -21,6 +21,12 @@ function isValidDate(value: string): boolean {
   return !Number.isNaN(new Date(value).getTime());
 }
 
+/**
+ * Deterministic safety net applied to every AI-extracted record — the model's output is never
+ * trusted blindly. Coerces non-string values to "", escapes raw newlines so records stay
+ * single-row-safe in CSV, and blanks any field that fails a hard rule (enum membership,
+ * date parseability) instead of trusting whatever the model returned.
+ */
 export function sanitizeRecord(raw: Partial<CrmRecord>): CrmRecord {
   const record = {} as CrmRecord;
   for (const field of CRM_FIELDS) {
@@ -42,6 +48,7 @@ export function sanitizeRecord(raw: Partial<CrmRecord>): CrmRecord {
   return record;
 }
 
+/** Sanitizes a record, then applies the spec's hard skip rule: no email and no mobile -> skipped. */
 export function postProcessRecord(
   raw: Partial<CrmRecord>,
   rowIndex: number,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 interface UploadDropzoneProps {
   onFileSelected: (file: File) => void;
@@ -11,11 +11,14 @@ export function UploadDropzone({ onFileSelected, error }: UploadDropzoneProps) {
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  function handleFiles(files: FileList | null) {
-    const file = files?.[0];
-    if (!file) return;
-    onFileSelected(file);
-  }
+  const handleFiles = useCallback(
+    (files: FileList | null) => {
+      const file = files?.[0];
+      if (!file) return;
+      onFileSelected(file);
+    },
+    [onFileSelected]
+  );
 
   return (
     <div className="w-full">
@@ -37,9 +40,7 @@ export function UploadDropzone({ onFileSelected, error }: UploadDropzoneProps) {
           if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
         }}
         className={`flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-12 text-center cursor-pointer transition-colors ${
-          isDragging
-            ? "border-blue-500 bg-blue-50 dark:bg-blue-500/10"
-            : "border-black/15 dark:border-white/20 hover:border-black/30 dark:hover:border-white/40"
+          isDragging ? "border-accent bg-accent-soft" : "border-border hover:border-fg-muted"
         }`}
       >
         <svg
@@ -48,7 +49,7 @@ export function UploadDropzone({ onFileSelected, error }: UploadDropzoneProps) {
           fill="none"
           stroke="currentColor"
           strokeWidth="1.5"
-          className="h-10 w-10 text-neutral-400"
+          className="h-10 w-10 text-fg-muted"
         >
           <path
             strokeLinecap="round"
@@ -57,10 +58,9 @@ export function UploadDropzone({ onFileSelected, error }: UploadDropzoneProps) {
           />
         </svg>
         <p className="text-sm font-medium">
-          Drag &amp; drop a CSV file here, or{" "}
-          <span className="text-blue-600 dark:text-blue-400 underline">browse</span>
+          Drag &amp; drop a CSV file here, or <span className="text-accent underline">browse</span>
         </p>
-        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+        <p className="text-xs text-fg-muted">
           Any CSV layout works — Facebook, Google Ads, Excel exports, and more
         </p>
         <input
@@ -71,7 +71,7 @@ export function UploadDropzone({ onFileSelected, error }: UploadDropzoneProps) {
           onChange={(e) => handleFiles(e.target.files)}
         />
       </div>
-      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="mt-2 text-sm text-danger">{error}</p>}
     </div>
   );
 }

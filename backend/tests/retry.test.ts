@@ -29,4 +29,14 @@ describe("withRetry", () => {
     await expect(withRetry(fn, { attempts: 3, baseDelayMs: 1 })).rejects.toThrow("always fails");
     expect(fn).toHaveBeenCalledTimes(3);
   });
+
+  it("stops after the first attempt when isRetryable rejects the error", async () => {
+    class FatalError extends Error {}
+    const fn = vi.fn().mockRejectedValue(new FatalError("not worth retrying"));
+
+    await expect(
+      withRetry(fn, { attempts: 3, baseDelayMs: 1, isRetryable: (err) => !(err instanceof FatalError) })
+    ).rejects.toThrow("not worth retrying");
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
 });

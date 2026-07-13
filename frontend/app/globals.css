@@ -2,25 +2,89 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * Design tokens — the single source of truth for color in this app. Every component consumes
+ * these via the Tailwind utilities generated below (bg-surface, text-fg-muted, border-border,
+ * bg-success-soft, etc.) instead of hardcoding a Tailwind color literal (e.g. "blue-600").
+ * Changing the palette, light values, or dark overrides only ever happens here.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-hover: #f5f5f5;
+  --fg: #171717;
+  --fg-muted: #6b7280;
+  --border: rgba(0, 0, 0, 0.1);
+
+  --accent: #2563eb;
+  --accent-fg: #ffffff;
+  --accent-soft: #eff6ff;
+
+  --success: #15803d;
+  --success-soft: #f0fdf4;
+
+  --warning: #b45309;
+  --warning-soft: #fffbeb;
+
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+
+  --neutral: #4b5563;
+  --neutral-soft: #f3f4f6;
 }
 
 .dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface-hover: #1f1f1f;
+  --fg: #ededed;
+  --fg-muted: #9ca3af;
+  --border: rgba(255, 255, 255, 0.15);
+
+  --accent: #60a5fa;
+  --accent-fg: #0a0a0a;
+  --accent-soft: rgba(96, 165, 250, 0.12);
+
+  --success: #4ade80;
+  --success-soft: rgba(74, 222, 128, 0.12);
+
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.12);
+
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.12);
+
+  --neutral: #d1d5db;
+  --neutral-soft: rgba(209, 213, 219, 0.1);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-border: var(--border);
+
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-neutral: var(--neutral);
+  --color-neutral-soft: var(--neutral-soft);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg);
+  color: var(--fg);
   font-family: Arial, Helvetica, sans-serif;
 }

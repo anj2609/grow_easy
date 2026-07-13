@@ -15,7 +15,7 @@ vi.mock("@google/genai", () => {
   };
 });
 
-import { GeminiProvider } from "../src/services/aiExtractor";
+import { AIQuotaExceededError, GeminiProvider } from "../src/services/aiExtractor";
 
 describe("GeminiProvider.extractBatch", () => {
   beforeEach(() => {
@@ -26,7 +26,7 @@ describe("GeminiProvider.extractBatch", () => {
     const fakeRecord = { name: "Jane Doe", email: "jane@example.com" };
     generateContentMock.mockResolvedValue({ text: JSON.stringify({ records: [fakeRecord] }) });
 
-    const provider = new GeminiProvider("fake-key", "gemini-2.5-flash");
+    const provider = new GeminiProvider("fake-key", "gemini-flash-latest");
     const result = await provider.extractBatch(["Name", "Email"], [{ Name: "Jane Doe", Email: "jane@example.com" }]);
 
     expect(result).toEqual([fakeRecord]);
@@ -35,7 +35,7 @@ describe("GeminiProvider.extractBatch", () => {
   it("throws when the response has no text", async () => {
     generateContentMock.mockResolvedValue({ text: "" });
 
-    const provider = new GeminiProvider("fake-key", "gemini-2.5-flash");
+    const provider = new GeminiProvider("fake-key", "gemini-flash-latest");
     await expect(provider.extractBatch(["Name"], [{ Name: "Jane" }])).rejects.toThrow(
       "did not contain any text"
     );
@@ -44,9 +44,19 @@ describe("GeminiProvider.extractBatch", () => {
   it("throws when the record count does not match the input row count", async () => {
     generateContentMock.mockResolvedValue({ text: JSON.stringify({ records: [] }) });
 
-    const provider = new GeminiProvider("fake-key", "gemini-2.5-flash");
+    const provider = new GeminiProvider("fake-key", "gemini-flash-latest");
     await expect(provider.extractBatch(["Name"], [{ Name: "Jane" }])).rejects.toThrow(
       "AI returned 0 records for a batch of 1 rows"
+    );
+  });
+
+  it("throws AIQuotaExceededError when the API responds with a 429 status", async () => {
+    const quotaError = Object.assign(new Error("RESOURCE_EXHAUSTED"), { status: 429 });
+    generateContentMock.mockRejectedValue(quotaError);
+
+    const provider = new GeminiProvider("fake-key", "gemini-flash-latest");
+    await expect(provider.extractBatch(["Name"], [{ Name: "Jane" }])).rejects.toBeInstanceOf(
+      AIQuotaExceededError
     );
   });
 });

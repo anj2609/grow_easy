@@ -7,6 +7,10 @@ export interface ParsedCsv {
 
 export class CsvParseError extends Error {}
 
+/**
+ * Parses a raw CSV buffer with no assumptions about column names — the caller decides what to
+ * do with `headers`/`rows`. Strips a UTF-8 BOM (common in Excel exports) and drops blank rows.
+ */
 export function parseCsvBuffer(buffer: Buffer): ParsedCsv {
   const text = buffer.toString("utf-8").replace(/^﻿/, "");
 

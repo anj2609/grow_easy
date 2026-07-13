@@ -7,6 +7,7 @@ export interface ParsedCsvPreview {
 
 export class CsvPreviewError extends Error {}
 
+/** Client-side-only parse used for the Step 2 preview — no network call happens here. */
 export function parseCsvFile(file: File): Promise<ParsedCsvPreview> {
   return new Promise((resolve, reject) => {
     Papa.parse<Record<string, string>>(file, {

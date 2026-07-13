@@ -10,7 +10,7 @@ vi.mock("@anthropic-ai/sdk", () => {
   };
 });
 
-import { AnthropicProvider } from "../src/services/aiExtractor";
+import { AIQuotaExceededError, AnthropicProvider } from "../src/services/aiExtractor";
 
 describe("AnthropicProvider.extractBatch", () => {
   beforeEach(() => {
@@ -46,6 +46,16 @@ describe("AnthropicProvider.extractBatch", () => {
     const provider = new AnthropicProvider("fake-key", "claude-sonnet-5");
     await expect(provider.extractBatch(["Name"], [{ Name: "Jane" }])).rejects.toThrow(
       "AI returned 0 records for a batch of 1 rows"
+    );
+  });
+
+  it("throws AIQuotaExceededError when the API responds with a 429 status", async () => {
+    const rateLimitError = Object.assign(new Error("rate limited"), { status: 429 });
+    createMock.mockRejectedValue(rateLimitError);
+
+    const provider = new AnthropicProvider("fake-key", "claude-sonnet-5");
+    await expect(provider.extractBatch(["Name"], [{ Name: "Jane" }])).rejects.toBeInstanceOf(
+      AIQuotaExceededError
     );
   });
 });

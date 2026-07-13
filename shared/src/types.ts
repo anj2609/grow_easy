@@ -1,3 +1,9 @@
+/**
+ * Contract shared by the backend and frontend workspaces: the fixed GrowEasy CRM
+ * schema, the closed enums the AI must map into, and the NDJSON streaming events
+ * exchanged between `POST /api/import/process` and the frontend.
+ */
+
 export const CRM_STATUS_VALUES = [
   "GOOD_LEAD_FOLLOW_UP",
   "DID_NOT_CONNECT",
@@ -35,7 +41,7 @@ export interface CrmRecord {
   description: string;
 }
 
-export const CRM_FIELDS: (keyof CrmRecord)[] = [
+export const CRM_FIELDS: readonly (keyof CrmRecord)[] = [
   "created_at",
   "name",
   "email",
@@ -51,12 +57,20 @@ export const CRM_FIELDS: (keyof CrmRecord)[] = [
   "data_source",
   "possession_time",
   "description",
-];
+] as const;
+
+/** Reasons a row was deterministically excluded from the imported set (see postProcess.ts). */
+export const SKIP_REASON_VALUES = [
+  "missing_email_and_mobile",
+  "ai_processing_failed",
+] as const;
+
+export type SkipReason = (typeof SKIP_REASON_VALUES)[number];
 
 export interface SkippedRecord {
   rowIndex: number;
   originalRow: Record<string, string>;
-  reason: string;
+  reason: SkipReason;
 }
 
 export interface ImportSummary {

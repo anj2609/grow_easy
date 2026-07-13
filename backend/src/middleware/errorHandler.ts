@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { MulterError } from "multer";
 import { CsvParseError } from "../services/csvParser";
+import { InvalidFileTypeError } from "./upload";
 
 export class HttpError extends Error {
   status: number;
@@ -13,12 +14,13 @@ export class HttpError extends Error {
   }
 }
 
-export function errorHandler(
-  err: unknown,
-  _req: Request,
-  res: Response,
-  _next: NextFunction
-): void {
+/**
+ * Central error → JSON mapping. Must stay streaming-safe: once NDJSON bytes have started
+ * flowing for `/api/import/process`, `res.headersSent` is true and we can only end the
+ * response, not send a fresh JSON error body — the route itself streams an `error` event
+ * for failures that occur mid-stream.
+ */
+export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction): void {
   if (res.headersSent) {
     res.end();
     return;
@@ -39,7 +41,7 @@ export function errorHandler(
     return;
   }
 
-  if (err instanceof Error && err.message === "Only .csv files are supported") {
+  if (err instanceof InvalidFileTypeError) {
     res.status(400).json({ error: { code: "invalid_file_type", message: err.message } });
     return;
   }

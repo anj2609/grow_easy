@@ -4,6 +4,11 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4
 
 export class ImportRequestError extends Error {}
 
+/**
+ * Streams `POST /api/import/process` as NDJSON: one JSON event per line, read incrementally via
+ * `ReadableStream` so the UI gets progress as each batch finishes instead of waiting for the
+ * whole file. Buffers partial lines across chunk boundaries (a chunk can split mid-line).
+ */
 export async function processImport(
   file: File,
   onEvent: (event: ImportStreamEvent) => void

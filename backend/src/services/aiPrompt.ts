@@ -1,5 +1,11 @@
 import { CRM_STATUS_VALUES, DATA_SOURCE_VALUES } from "@groweasy/shared";
 
+/**
+ * Shared across every AIProvider implementation so extraction behavior is identical
+ * regardless of which model is configured. Encodes the full field schema, the two closed
+ * enums (blank when not confident, never invented), the date-parseability rule, the
+ * multi-email/multi-phone overflow rule, and worked examples for ambiguous headers.
+ */
 export const SYSTEM_PROMPT = `You are a data-mapping engine for GrowEasy CRM. You receive rows from an arbitrary,
 messy CSV export (Facebook lead ads, Google Ads, real-estate CRM exports, sales reports, manually
 made spreadsheets, etc.) and must map each row onto this fixed CRM schema:
@@ -48,6 +54,7 @@ Rules:
    downstream code decides whether to keep or skip it. Do not omit rows from your output.
 7. Return exactly one record object per input row, in the exact same order as the input rows.`;
 
+/** Builds the per-batch user message: headers once, then row-indexed payload for grounding. */
 export function buildUserMessage(headers: string[], rows: Record<string, string>[]): string {
   const payload = rows.map((row, index) => ({
     rowIndex: index,

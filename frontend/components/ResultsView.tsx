@@ -3,6 +3,9 @@
 import { useMemo, useState } from "react";
 import { CRM_FIELDS, CrmRecord, SkippedRecord } from "@groweasy/shared";
 import { DataTable, DataTableColumn } from "./DataTable";
+import { StatusBadge } from "./StatusBadge";
+import { SummaryCard } from "./SummaryCard";
+import { SKIP_REASON_LABELS, toneForCrmStatus, toneForSkipReason } from "@/lib/theme";
 
 interface ResultsViewProps {
   records: CrmRecord[];
@@ -11,12 +14,16 @@ interface ResultsViewProps {
   onStartOver: () => void;
 }
 
-type SkippedRow = Record<string, unknown> & { reason: string };
+type SkippedRow = Record<string, unknown> & { reason: SkippedRecord["reason"] };
 
 const IMPORTED_COLUMNS: DataTableColumn<CrmRecord>[] = CRM_FIELDS.map((field) => ({
   key: field,
   header: field,
   width: field === "crm_note" || field === "description" ? 260 : 160,
+  render:
+    field === "crm_status"
+      ? (row) => (row.crm_status ? <StatusBadge label={row.crm_status} tone={toneForCrmStatus(row.crm_status)} /> : null)
+      : undefined,
 }));
 
 export function ResultsView({ records, skipped, totalRows, onStartOver }: ResultsViewProps) {
@@ -31,7 +38,14 @@ export function ResultsView({ records, skipped, totalRows, onStartOver }: Result
     const headerKeys = new Set<string>();
     skipped.forEach((s) => Object.keys(s.originalRow).forEach((k) => headerKeys.add(k)));
     return [
-      { key: "reason", header: "Skip Reason", width: 200 },
+      {
+        key: "reason",
+        header: "Skip Reason",
+        width: 220,
+        render: (row) => (
+          <StatusBadge label={SKIP_REASON_LABELS[row.reason]} tone={toneForSkipReason(row.reason)} />
+        ),
+      },
       ...Array.from(headerKeys).map((key) => ({ key, header: key, width: 180 })),
     ];
   }, [skipped]);
@@ -41,11 +55,11 @@ export function ResultsView({ records, skipped, totalRows, onStartOver }: Result
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <SummaryCard label="Total Rows" value={totalRows} />
         <SummaryCard label="Imported" value={records.length} tone="success" />
-        <SummaryCard label="Skipped" value={skipped.length} tone="warn" />
+        <SummaryCard label="Skipped" value={skipped.length} tone="warning" />
       </div>
 
       <div className="flex items-center justify-between">
-        <div className="inline-flex rounded-lg border border-black/10 dark:border-white/15 p-1">
+        <div className="inline-flex rounded-lg border border-border p-1">
           <TabButton active={activeTab === "imported"} onClick={() => setActiveTab("imported")}>
             Imported ({records.length})
           </TabButton>
@@ -56,7 +70,7 @@ export function ResultsView({ records, skipped, totalRows, onStartOver }: Result
         <button
           type="button"
           onClick={onStartOver}
-          className="rounded-lg border border-black/10 dark:border-white/15 px-4 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10"
+          className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-surface-hover"
         >
           Import another file
         </button>
@@ -81,32 +95,6 @@ export function ResultsView({ records, skipped, totalRows, onStartOver }: Result
   );
 }
 
-function SummaryCard({
-  label,
-  value,
-  tone = "default",
-}: {
-  label: string;
-  value: number;
-  tone?: "default" | "success" | "warn";
-}) {
-  const toneClass =
-    tone === "success"
-      ? "text-green-600 dark:text-green-400"
-      : tone === "warn"
-        ? "text-amber-600 dark:text-amber-400"
-        : "text-neutral-900 dark:text-neutral-100";
-
-  return (
-    <div className="rounded-xl border border-black/10 dark:border-white/15 p-5">
-      <p className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-        {label}
-      </p>
-      <p className={`mt-1 text-3xl font-semibold ${toneClass}`}>{value}</p>
-    </div>
-  );
-}
-
 function TabButton({
   active,
   onClick,
@@ -121,9 +109,7 @@ function TabButton({
       type="button"
       onClick={onClick}
       className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
-        active
-          ? "bg-blue-600 text-white"
-          : "text-neutral-600 dark:text-neutral-300 hover:bg-black/5 dark:hover:bg-white/10"
+        active ? "bg-accent text-accent-fg" : "text-fg-muted hover:bg-surface-hover"
       }`}
     >
       {children}

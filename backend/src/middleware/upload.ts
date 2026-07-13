@@ -8,6 +8,13 @@ const ALLOWED_MIME_TYPES = new Set([
   "text/plain",
 ]);
 
+export class InvalidFileTypeError extends Error {
+  constructor() {
+    super("Only .csv files are supported");
+  }
+}
+
+/** Single-file `multipart/form-data` upload, field name `file`. Memory storage — the CSV is small and never touches disk. */
 export const csvUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: config.maxUploadMb * 1024 * 1024 },
@@ -18,6 +25,6 @@ export const csvUpload = multer({
       callback(null, true);
       return;
     }
-    callback(new Error("Only .csv files are supported"));
+    callback(new InvalidFileTypeError());
   },
 }).single("file");

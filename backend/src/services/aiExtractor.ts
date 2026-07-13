@@ -5,8 +5,24 @@ import { config } from "../config";
 import { withTimeout } from "../lib/timeout";
 import { SYSTEM_PROMPT, buildUserMessage, CRM_STATUS_ENUM, DATA_SOURCE_ENUM } from "./aiPrompt";
 
+/**
+ * Every LLM backend implements this single method, so the batching/retry/streaming logic in
+ * routes/import.ts never needs to know which provider is configured.
+ */
 export interface AIProvider {
   extractBatch(headers: string[], rows: Record<string, string>[]): Promise<CrmRecord[]>;
+}
+
+/**
+ * Thrown when a provider reports its request quota/rate limit is exhausted (HTTP 429). This is
+ * never worth retrying within our short backoff window, and retrying it across every batch in an
+ * import would burn through the little quota that's left for no benefit — routes/import.ts
+ * checks for this type to fail the whole import fast with a clear message instead.
+ */
+export class AIQuotaExceededError extends Error {}
+
+function isQuotaExceededError(error: unknown): boolean {
+  return (error as { status?: number } | undefined)?.status === 429;
 }
 
 function assertRecordCount(records: unknown, expected: number): CrmRecord[] {
@@ -21,10 +37,7 @@ function assertRecordCount(records: unknown, expected: number): CrmRecord[] {
 
 const TOOL_NAME = "submit_crm_records";
 
-const ANTHROPIC_FIELD_PROPERTIES: Record<
-  keyof CrmRecord,
-  { type: "string"; enum?: readonly string[] }
-> = {
+const ANTHROPIC_FIELD_PROPERTIES: Record<keyof CrmRecord, { type: "string"; enum?: readonly string[] }> = {
   created_at: { type: "string" },
   name: { type: "string" },
   email: { type: "string" },
@@ -49,6 +62,7 @@ const ANTHROPIC_RECORD_SCHEMA = {
   additionalProperties: false,
 };
 
+/** Claude backend: forces structured output via tool-use rather than parsing prose JSON. */
 export class AnthropicProvider implements AIProvider {
   private client: Anthropic;
   private model: string;
@@ -59,33 +73,43 @@ export class AnthropicProvider implements AIProvider {
   }
 
   async extractBatch(headers: string[], rows: Record<string, string>[]): Promise<CrmRecord[]> {
-    const response = await withTimeout(
-      this.client.messages.create({
-        model: this.model,
-        max_tokens: 8192,
-        system: SYSTEM_PROMPT,
-        tools: [
-          {
-            name: TOOL_NAME,
-            description: "Submit the extracted CRM records for this batch, one per input row, in order.",
-            input_schema: {
-              type: "object",
-              properties: {
-                records: {
-                  type: "array",
-                  items: ANTHROPIC_RECORD_SCHEMA,
+    let response;
+    try {
+      response = await withTimeout(
+        this.client.messages.create({
+          model: this.model,
+          max_tokens: 8192,
+          system: SYSTEM_PROMPT,
+          tools: [
+            {
+              name: TOOL_NAME,
+              description: "Submit the extracted CRM records for this batch, one per input row, in order.",
+              input_schema: {
+                type: "object",
+                properties: {
+                  records: {
+                    type: "array",
+                    items: ANTHROPIC_RECORD_SCHEMA,
+                  },
                 },
+                required: ["records"],
               },
-              required: ["records"],
             },
-          },
-        ],
-        tool_choice: { type: "tool", name: TOOL_NAME },
-        messages: [{ role: "user", content: buildUserMessage(headers, rows) }],
-      }),
-      config.aiRequestTimeoutMs,
-      "Anthropic request timed out"
-    );
+          ],
+          tool_choice: { type: "tool", name: TOOL_NAME },
+          messages: [{ role: "user", content: buildUserMessage(headers, rows) }],
+        }),
+        config.aiRequestTimeoutMs,
+        "Anthropic request timed out"
+      );
+    } catch (error) {
+      if (isQuotaExceededError(error)) {
+        throw new AIQuotaExceededError(
+          "Anthropic API rate limit or quota exceeded. Try again later or switch AI_PROVIDER."
+        );
+      }
+      throw error;
+    }
 
     const toolUse = response.content.find(
       (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
@@ -102,9 +126,9 @@ export class AnthropicProvider implements AIProvider {
 function geminiStringField(enumValues?: readonly string[]) {
   return {
     type: Type.STRING,
-    // Gemini's schema validator rejects an empty string inside `enum`, so
-    // fields that may be legitimately blank use `nullable` instead; a `null`
-    // response is normalized to "" by postProcess.sanitizeField.
+    // Gemini's schema validator rejects an empty string inside `enum`, so fields that may be
+    // legitimately blank use `nullable` instead; a `null` response is normalized to "" by
+    // postProcess.sanitizeField.
     ...(enumValues ? { enum: [...enumValues], nullable: true } : {}),
   };
 }
@@ -132,6 +156,7 @@ const GEMINI_RECORD_SCHEMA = {
   propertyOrdering: CRM_FIELDS,
 };
 
+/** Gemini backend (default): forces structured output via `responseSchema` + JSON mime type. */
 export class GeminiProvider implements AIProvider {
   private client: GoogleGenAI;
   private model: string;
@@ -142,25 +167,35 @@ export class GeminiProvider implements AIProvider {
   }
 
   async extractBatch(headers: string[], rows: Record<string, string>[]): Promise<CrmRecord[]> {
-    const response = await withTimeout(
-      this.client.models.generateContent({
-        model: this.model,
-        contents: buildUserMessage(headers, rows),
-        config: {
-          systemInstruction: SYSTEM_PROMPT,
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              records: { type: Type.ARRAY, items: GEMINI_RECORD_SCHEMA },
+    let response;
+    try {
+      response = await withTimeout(
+        this.client.models.generateContent({
+          model: this.model,
+          contents: buildUserMessage(headers, rows),
+          config: {
+            systemInstruction: SYSTEM_PROMPT,
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                records: { type: Type.ARRAY, items: GEMINI_RECORD_SCHEMA },
+              },
+              required: ["records"],
             },
-            required: ["records"],
           },
-        },
-      }),
-      config.aiRequestTimeoutMs,
-      "Gemini request timed out"
-    );
+        }),
+        config.aiRequestTimeoutMs,
+        "Gemini request timed out"
+      );
+    } catch (error) {
+      if (isQuotaExceededError(error)) {
+        throw new AIQuotaExceededError(
+          "Gemini API rate limit or quota exceeded. Try again later or switch AI_PROVIDER."
+        );
+      }
+      throw error;
+    }
 
     const text = response.text;
     if (!text) {
@@ -172,6 +207,7 @@ export class GeminiProvider implements AIProvider {
   }
 }
 
+/** Picks the configured provider (`AI_PROVIDER` env var, default "gemini"). */
 export function createAIProvider(): AIProvider {
   if (config.aiProvider === "anthropic") {
     if (!config.anthropicApiKey) {
