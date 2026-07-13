@@ -4,7 +4,8 @@ An AI-powered CSV importer that maps leads from **any** CSV layout — Facebook 
 Google Ads exports, real-estate CRM exports, sales reports, hand-made spreadsheets — into the
 fixed GrowEasy CRM schema, without assuming fixed column names.
 
-- **Live app:** _TODO: add deployed URL_
+- **Live app:** https://grow-easy-frontend-lovat.vercel.app/
+- **Backend API:** https://groweasy-backend-geo4.onrender.com (health check: `/health`)
 - **Position applied for:** Full-Time
 
 ## How it works
@@ -150,6 +151,20 @@ docker compose up --build
 ```
 
 Frontend on http://localhost:3000, backend on http://localhost:4000.
+
+## Deployment
+
+- **Backend** — Render Web Service, built from `backend/Dockerfile` (multi-stage: builds
+  `shared` + `backend`, runs `node backend/dist/index.js`). `PORT` is injected by Render and
+  read via `config.ts`; `CORS_ORIGIN` is scoped to the exact deployed frontend origin (no
+  trailing slash — browsers match `Access-Control-Allow-Origin` byte-for-byte against `Origin`,
+  which never has one).
+- **Frontend** — Vercel, Root Directory `frontend`, with the install/build commands overridden
+  to resolve the `@groweasy/shared` workspace dependency from the repo root before building the
+  Next.js app: Install `cd .. && npm install`, Build `cd .. && npm run build -w shared && npm run
+  build -w frontend`. `NEXT_PUBLIC_API_BASE_URL` points at the Render backend URL above.
+- Free-tier note: the Render service spins down after ~15 min idle, so the first request after
+  a period of inactivity takes 20-50s to cold-start.
 
 ## CRM fields
 
